@@ -1,0 +1,14 @@
+{
+  "endpoints": [
+    "fast"
+  ],
+  "remaining_budget": 1.6,
+  "requests": 5,
+  "statuses": [
+    "ok",
+    "ok",
+    "ok",
+    "ok",
+    "ok"
+  ]
+}
