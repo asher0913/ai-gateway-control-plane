@@ -1,9 +1,10 @@
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
 .venv/
-dist/
 build/
-*.egg-info/
+dist/
+*.npz
 .DS_Store

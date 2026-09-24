@@ -4,17 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-gateway-control-plane"
-version = "0.1.0"
-description = "A provider-neutral model gateway control plane with capability routing, token and concurrency limits, budget settlement, circuit breaking, prompt versioning, and auditable decisions."
+version = "1.0.0"
+description = "LLM gateway control plane: per-tenant rate and budget enforcement, sliding-window circuit breakers, fallback routing, canary prompt versions and a hash-chained audit log, evaluated by fault-injection simulation."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = {text = "MIT"}
-authors = [{name = "Asher"}]
-classifiers = [
-  "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
-]
+authors = [{name = "Yixuan Zhang"}]
+dependencies = []
+
+[project.optional-dependencies]
+server = ["fastapi>=0.110", "httpx>=0.27"]
+viz = ["matplotlib>=3.7"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+aigw = "aigw.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["ai_gateway_control_plane*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
