@@ -52,7 +52,7 @@
         "backup": 0
       },
       "cost_usd": 5.7529,
-      "cost_per_success_usd": 0.00045316433241433633,
+      "cost_per_success_usd": 0.00045316,
       "tenants": {
         "search": {
           "offered": 8852,
@@ -234,7 +234,7 @@
         "backup": 0
       },
       "cost_usd": 5.9536,
-      "cost_per_success_usd": 0.000454021905742393,
+      "cost_per_success_usd": 0.00045402,
       "tenants": {
         "search": {
           "offered": 8852,
@@ -416,7 +416,7 @@
         "backup": 0
       },
       "cost_usd": 28.0601,
-      "cost_per_success_usd": 0.001973286845991561,
+      "cost_per_success_usd": 0.00197329,
       "tenants": {
         "search": {
           "offered": 8852,
@@ -598,7 +598,7 @@
         "backup": 0
       },
       "cost_usd": 30.905,
-      "cost_per_success_usd": 0.0021741121069293002,
+      "cost_per_success_usd": 0.00217411,
       "tenants": {
         "search": {
           "offered": 8852,
@@ -983,7 +983,7 @@
         "backup": 3
       },
       "cost_usd": 41.3568,
-      "cost_per_success_usd": 0.002910197526563929,
+      "cost_per_success_usd": 0.0029102,
       "tenants": {
         "search": {
           "offered": 8852,

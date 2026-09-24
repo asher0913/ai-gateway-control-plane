@@ -238,7 +238,7 @@ def summarize(scenario: Scenario, policy: Policy, gateway: Gateway, finals: list
         "attempts_by_endpoint": dict(gateway.attempts_by_endpoint),
         "failed_attempts_by_endpoint": dict(gateway.failures_by_endpoint),
         "cost_usd": round(sum(f.cost_usd for f in ok), 4),
-        "cost_per_success_usd": sum(f.cost_usd for f in ok) / len(ok) if ok else 0.0,
+        "cost_per_success_usd": round(sum(f.cost_usd for f in ok) / len(ok), 8) if ok else 0.0,
         "tenants": by_tenant,
         "budget_invariant_held": all(
             gateway.ledger.spent.get(t, 0.0) <= gateway.ledger.limits[t] + 1e-9 for t in gateway.ledger.limits
