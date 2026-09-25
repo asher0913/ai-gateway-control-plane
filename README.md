@@ -12,6 +12,19 @@ two provider incidents.
 
 ![Success rate and p95 latency through an outage and a brownout](docs/incident_timeline.png)
 
+## Quick start
+
+```bash
+git clone https://github.com/asher0913/ai-gateway-control-plane && cd ai-gateway-control-plane
+python3 -m venv .venv && . .venv/bin/activate && pip install -e '.[dev]'
+aigw simulate --out runs/simulation.json
+```
+
+This needs Python 3.10+ and nothing else. The simulation replays the hour below through all five
+policies in about a second. CI runs the same command on every push and requires the output to
+equal `results/simulation.json` exactly. `aigw serve` (under "Run the service") starts the same
+gateway as an HTTP service.
+
 ## Results
 
 One simulated hour: 20,622 requests from three tenants; the cheap primary provider has a
@@ -79,6 +92,36 @@ flowchart LR
 The gateway is written as two event handlers, `on_arrival` and `on_attempt_done`, so exactly the
 same code runs in the discrete-event simulator and behind the HTTP service.
 
+## Evidence and CI coverage
+
+| Result | Kind of evidence | File | Rerun in CI? |
+|---|---|---|---|
+| Policy table, incident timeline and invariants | deterministic discrete-event simulation; providers, prices and incidents are illustrative | `results/simulation.json`, `docs/incident_timeline.png` | Numbers: yes, exact match. Figure: drawn from the same file by `scripts/make_figures.py`, not in CI. |
+| Breaker, budget, rate-limit and audit-chain behaviour | unit tests | `tests/` (29 tests) | Yes |
+| HTTP error mapping and failover through an injected outage | FastAPI test client | `tests/` | Yes |
+
+Nothing here is a measurement against a real LLM provider.
+
+## Design trade-offs
+
+| Decision | Chosen | Alternative | Why |
+|---|---|---|---|
+| Budget enforcement | reserve the worst-case cost of every endpoint a fallback could reach, then settle | charge after the call | Charging afterwards lets concurrent requests overshoot the budget; reservations keep `spent + reserved ≤ limit`. The cost is some requests rejected that would have fit. |
+| Failure handling | fallback + circuit breaker + latency-aware routing | retries on the same endpoint | Same-endpoint retries tripled the load on a failing provider and doubled p99 (table above). |
+| Brownout detection | EWMA of latency that decays toward a prior | failure-rate breaker only | A 5%-error brownout never trips a 50% breaker; the decay lets a recovered endpoint win traffic back. |
+| Code structure | two event handlers shared by the simulator and the server | separate simulator | The code that is measured is the code that serves. |
+| Audit | hash-chained log | append-only table | Edits, deletions and reordering are detectable by `verify()` without external infrastructure. |
+
+## Code map
+
+| File | What to look at |
+|---|---|
+| `src/aigw/gateway.py` | `Gateway.on_arrival` and `on_attempt_done` (the whole control flow), `rank` and `_choose` (routing), `LatencyEstimator` |
+| `src/aigw/controls.py` | `TokenBucket`, `RateLimiter.admit`/`settle`, `BudgetLedger.reserve`/`commit`/`release`, `CircuitBreaker.allow`/`record` |
+| `src/aigw/registry.py` | prompt versions, sticky weighted canaries, the hash-chained `AuditLog` |
+| `src/aigw/sim.py` | the traffic model, the two incidents and the five policies |
+| `src/aigw/server.py` | FastAPI service: `/v1/chat/completions` and the admin endpoints |
+
 ## Run the service
 
 ```bash
@@ -119,6 +162,16 @@ mapping plus failover through an injected outage.
 - Token counts in the HTTP service are estimated from characters; a tokenizer per model family
   would make admission estimates tighter.
 - Streaming responses, request hedging and cancellation are not modelled.
+
+## Known issues
+
+The HTTP service is a demo of the control logic and is not yet safe to expose:
+
+- **The admin endpoints are unauthenticated.** Anyone who can reach the service can inject
+  incidents with `POST /v1/admin/incidents/{endpoint}` and read breaker, budget and audit state.
+- **The tenant is whatever the `x-tenant` header says.** Nothing ties the header to a credential,
+  so a caller can spend another tenant's budget. In production the tenant must come from an API key
+  or a verified token.
 
 ## License
 
