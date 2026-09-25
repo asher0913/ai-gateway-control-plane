@@ -34,11 +34,23 @@ def _simulate(args) -> int:
 
 
 def _serve(args) -> int:
+    import os
+
     import uvicorn
 
-    from .server import create_app
+    from .server import API_KEYS_ENV, create_app, demo_credentials
+    from .sim import reference_scenario
 
-    uvicorn.run(create_app(), host=args.host, port=args.port)
+    if os.environ.get(API_KEYS_ENV):
+        app = create_app()
+    else:  # demo mode: fresh random credentials, printed once
+        keys, admin = demo_credentials(reference_scenario().tenants)
+        print("Demo credentials (set AIGW_API_KEYS and AIGW_ADMIN_TOKEN to use your own):")
+        for key, tenant in keys.items():
+            print(f"  tenant {tenant:8s} Authorization: Bearer {key}")
+        print(f"  admin           Authorization: Bearer {admin}")
+        app = create_app(api_keys=keys, admin_token=admin)
+    uvicorn.run(app, host=args.host, port=args.port)
     return 0
 
 

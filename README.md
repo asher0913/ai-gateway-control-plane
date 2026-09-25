@@ -98,7 +98,7 @@ same code runs in the discrete-event simulator and behind the HTTP service.
 |---|---|---|---|
 | Policy table, incident timeline and invariants | deterministic discrete-event simulation; providers, prices and incidents are illustrative | `results/simulation.json`, `docs/incident_timeline.png` | Numbers: yes, exact match. Figure: drawn from the same file by `scripts/make_figures.py`, not in CI. |
 | Breaker, budget, rate-limit and audit-chain behaviour | unit tests | `tests/` (29 tests) | Yes |
-| HTTP error mapping and failover through an injected outage | FastAPI test client | `tests/` | Yes |
+| HTTP error mapping, failover, API-key tenancy and admin-token protection | FastAPI test client | `tests/test_server.py` | Yes |
 
 Nothing here is a measurement against a real LLM provider.
 
@@ -120,38 +120,68 @@ Nothing here is a measurement against a real LLM provider.
 | `src/aigw/controls.py` | `TokenBucket`, `RateLimiter.admit`/`settle`, `BudgetLedger.reserve`/`commit`/`release`, `CircuitBreaker.allow`/`record` |
 | `src/aigw/registry.py` | prompt versions, sticky weighted canaries, the hash-chained `AuditLog` |
 | `src/aigw/sim.py` | the traffic model, the two incidents and the five policies |
-| `src/aigw/server.py` | FastAPI service: `/v1/chat/completions` and the admin endpoints |
+| `src/aigw/server.py` | FastAPI service: tenant from the API key, admin token on `/v1/admin/*`, error mapping |
 
 ## Run the service
 
 ```bash
 pip install -e '.[server,dev]'
-aigw serve --port 8000
+aigw serve --port 8000        # prints demo API keys (one per tenant) and an admin token
 ```
 
 ```bash
-curl -s localhost:8000/v1/chat/completions -H 'x-tenant: search' -H 'content-type: application/json' \
-  -d '{"messages":[{"role":"user","content":"hello"}],"max_tokens":128}'
+curl -s localhost:8000/v1/chat/completions -H "Authorization: Bearer $SEARCH_KEY" \
+  -H 'content-type: application/json' -d '{"messages":[{"role":"user","content":"hello"}],"max_tokens":128}'
 
-curl -s -X POST 'localhost:8000/v1/admin/incidents/primary?seconds=120'   # inject an outage
-curl -s localhost:8000/v1/admin/breakers                                  # {"primary":"open",...}
-curl -s localhost:8000/v1/admin/audit/verify
+curl -s -X POST 'localhost:8000/v1/admin/incidents/primary?seconds=120' -H "Authorization: Bearer $ADMIN_TOKEN"
+curl -s localhost:8000/v1/admin/breakers -H "Authorization: Bearer $ADMIN_TOKEN"   # {"primary":"open",...}
+curl -s localhost:8000/v1/admin/audit/verify -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
+To use your own credentials, set `AIGW_API_KEYS=key1=search,key2=support,key3=batch` and
+`AIGW_ADMIN_TOKEN=...` before `aigw serve`.
+
 The service exposes an OpenAI-style `/v1/chat/completions` endpoint and maps gateway outcomes to
-HTTP semantics: 429 for rate limits, 402 for budget, 401 for unknown tenants, 503 when no healthy
-endpoint remains and 502 when every attempt failed. Providers are simulated; replacing the `call`
-function in `server.py` with a real HTTP client is the only change needed to front live APIs.
+HTTP semantics:
+
+| Status | Meaning |
+|---|---|
+| 401 | missing or unknown API key |
+| 429 | rate limit |
+| 402 | budget exhausted |
+| 503 | no healthy endpoint remains |
+| 502 | every attempt failed |
+
+### Demo versus deployable
+
+What the service enforces:
+
+- **The tenant comes from the API key.** The key is checked against SHA-256 digests. An
+  `x-tenant` header is ignored, so one tenant cannot spend another's budget.
+- **Admin endpoints need a separate admin token.** This covers fault injection and breaker,
+  budget and audit state. It is compared in constant time. Without a configured admin token, the
+  admin API is disabled (403).
+- **The service refuses to start without API keys.**
+
+What it does not do, and a deployment would need:
+
+- **Real providers:** replace `call` in `server.py`.
+- **Shared state:** rate-limit, budget and breaker state is per process today; it needs to be
+  shared across replicas, for example in Redis.
+- **Key management:** issue, rotate and revoke keys instead of reading them from an environment
+  variable.
+- **TLS.**
 
 ## Tests
 
-`pytest -q` runs 29 tests in about 2 seconds: token-bucket refill and burst, refund on settlement,
+`pytest -q` runs 33 tests in about 2 seconds: token-bucket refill and burst, refund on settlement,
 the request slot returned when the token check fails, reservations that block overspend, every
 breaker transition including limited half-open probes and ignored late results, canary share and
 stickiness, promote and rollback, detection of edited and reordered audit records, fallback
 choosing a different endpoint, open breakers skipped up front, worst-case budget holds, EWMA
-decay, determinism of the simulation, the policy ranking in the table above, and the HTTP error
-mapping plus failover through an injected outage.
+decay, determinism of the simulation, the policy ranking in the table above, the HTTP error
+mapping, failover through an injected outage, and the HTTP security checks: unknown keys, a
+spoofed `x-tenant` header, anonymous and tenant callers on the admin API, and a disabled admin API.
 
 ## Limitations
 
@@ -162,16 +192,6 @@ mapping plus failover through an injected outage.
 - Token counts in the HTTP service are estimated from characters; a tokenizer per model family
   would make admission estimates tighter.
 - Streaming responses, request hedging and cancellation are not modelled.
-
-## Known issues
-
-The HTTP service is a demo of the control logic and is not yet safe to expose:
-
-- **The admin endpoints are unauthenticated.** Anyone who can reach the service can inject
-  incidents with `POST /v1/admin/incidents/{endpoint}` and read breaker, budget and audit state.
-- **The tenant is whatever the `x-tenant` header says.** Nothing ties the header to a credential,
-  so a caller can spend another tenant's budget. In production the tenant must come from an API key
-  or a verified token.
 
 ## License
 
