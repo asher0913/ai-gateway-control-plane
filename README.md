@@ -97,7 +97,7 @@ same code runs in the discrete-event simulator and behind the HTTP service.
 | Result | Kind of evidence | File | Rerun in CI? |
 |---|---|---|---|
 | Policy table, incident timeline and invariants | deterministic discrete-event simulation; providers, prices and incidents are illustrative | `results/simulation.json`, `docs/incident_timeline.png` | Numbers: yes, exact match. Figure: drawn from the same file by `scripts/make_figures.py`, not in CI. |
-| Breaker, budget, rate-limit and audit-chain behaviour | unit tests | `tests/` (29 tests) | Yes |
+| Breaker, budget, rate-limit and audit-chain behaviour | unit tests | `tests/` (33 tests) | Yes |
 | HTTP error mapping, failover, API-key tenancy and admin-token protection | FastAPI test client | `tests/test_server.py` | Yes |
 
 Nothing here is a measurement against a real LLM provider.
